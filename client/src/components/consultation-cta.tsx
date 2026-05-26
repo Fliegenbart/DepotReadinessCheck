@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import type { ComparisonResult, TaxIncentiveRegion, TruckParameters } from "@shared/schema";
+import type {
+  ComparisonResult,
+  LifecycleAssumptions,
+  TaxIncentiveRegion,
+  TruckParameters,
+} from "@shared/schema";
 import type { OperationProfile } from "@/types/operation-profile";
 import { useTenant } from "@/lib/tenant";
 import { apiRequest } from "@/lib/queryClient";
@@ -27,6 +32,7 @@ interface ConsultationCTAProps {
     taxIncentiveRegion: TaxIncentiveRegion;
     fleetSize: number;
     operationProfile: OperationProfile;
+    lifecycleAssumptions: LifecycleAssumptions;
     computedAnnualMileage: number;
     syncMileage: boolean;
     effectiveElectricFuelCost1: number;

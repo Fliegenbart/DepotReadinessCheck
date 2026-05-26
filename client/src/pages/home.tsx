@@ -14,10 +14,18 @@ import { EonDriveBenefits } from "@/components/eon-drive-benefits";
 import { ConsultationCTA } from "@/components/consultation-cta";
 import { PdfExportButton } from "@/components/pdf-export-button";
 import { OperationProfileCard } from "@/components/operation-profile";
+import { LifecycleAssumptionsCard } from "@/components/lifecycle-assumptions-card";
+import { LifecycleInsightCard } from "@/components/lifecycle-insight-card";
 import { Calculator, RotateCcw } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { TruckParameters, ComparisonResult, TaxIncentiveRegion } from "@shared/schema";
+import type {
+  ComparisonResult,
+  LifecycleAssumptions,
+  TaxIncentiveRegion,
+  TruckParameters,
+} from "@shared/schema";
+import { defaultLifecycleAssumptions } from "@shared/lifecycle";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/lib/tenant";
 import { EmbedAutoResize } from "@/components/embed-auto-resize";
@@ -125,11 +133,17 @@ const defaultOperationProfile: OperationProfile = {
   useP90ForCalc: false,
 };
 
+const defaultLifecycleState: LifecycleAssumptions = {
+  ...defaultLifecycleAssumptions,
+};
+
 export default function Home() {
   const [dieselTruck, setDieselTruck] = useState<TruckParameters>(defaultDieselTruck);
   const [electricTruck1, setElectricTruck1] = useState<TruckParameters>(defaultElectricTruck1);
   const [electricTruck2, setElectricTruck2] = useState<TruckParameters>(defaultElectricTruck2);
   const [operationProfile, setOperationProfile] = useState<OperationProfile>(defaultOperationProfile);
+  const [lifecycleAssumptions, setLifecycleAssumptions] =
+    useState<LifecycleAssumptions>(defaultLifecycleState);
   const [syncMileage, setSyncMileage] = useState(true);
   const [timeframeYears, setTimeframeYears] = useState(10);
   const [taxIncentiveRegion, setTaxIncentiveRegion] = useState<TaxIncentiveRegion>("bundesfoerderung");
@@ -188,6 +202,7 @@ export default function Home() {
         electricTruck2,
         timeframeYears,
         taxIncentiveRegion,
+        lifecycleAssumptions,
         operationProfile: {
           ...operationProfile,
           publicChargeShare: operationProfile.opportunityCharging ? operationProfile.publicChargeShare : 0,
@@ -227,6 +242,7 @@ export default function Home() {
     setElectricTruck1(defaultElectricTruck1);
     setElectricTruck2(defaultElectricTruck2);
     setOperationProfile(defaultOperationProfile);
+    setLifecycleAssumptions(defaultLifecycleState);
     setSyncMileage(true);
     setTimeframeYears(10);
     setTaxIncentiveRegion("bundesfoerderung");
@@ -312,6 +328,11 @@ export default function Home() {
             syncMileage={syncMileage}
             onSyncMileageChange={setSyncMileage}
             computedAnnualMileage={computedAnnualMileage}
+          />
+
+          <LifecycleAssumptionsCard
+            value={lifecycleAssumptions}
+            onChange={setLifecycleAssumptions}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -425,6 +446,12 @@ export default function Home() {
 
             <SummaryMetrics result={result} fleetSize={fleetSize} />
 
+            <LifecycleInsightCard
+              result={result}
+              lifecycleAssumptions={lifecycleAssumptions}
+              fleetSize={fleetSize}
+            />
+
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
               <div className="card-hover">
                 <AmortizationChart result={result} />
@@ -459,6 +486,7 @@ export default function Home() {
                 taxIncentiveRegion,
                 fleetSize,
                 operationProfile,
+                lifecycleAssumptions,
                 computedAnnualMileage,
                 syncMileage,
                 effectiveElectricFuelCost1: effectiveElectric1Cost,

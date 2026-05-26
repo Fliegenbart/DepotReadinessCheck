@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { pgTable, serial, integer, text, jsonb, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import { defaultLifecycleAssumptions } from "./lifecycle";
 
 export const axleConfigurations = ["4x2", "6x2", "6x4", "8x4"] as const;
 export type AxleConfiguration = typeof axleConfigurations[number];
@@ -66,6 +65,46 @@ export const operationProfileSchema = z.object({
 
 export type OperationProfile = z.infer<typeof operationProfileSchema>;
 
+export const lifecycleAssumptionsSchema = z.object({
+  enabled: z.boolean().optional().default(defaultLifecycleAssumptions.enabled),
+  dieselPriceIncreasePercentAnnual: z
+    .number()
+    .min(-100)
+    .max(100)
+    .optional()
+    .default(defaultLifecycleAssumptions.dieselPriceIncreasePercentAnnual),
+  electricityPriceIncreasePercentAnnual: z
+    .number()
+    .min(-100)
+    .max(100)
+    .optional()
+    .default(defaultLifecycleAssumptions.electricityPriceIncreasePercentAnnual),
+  dieselTollCostPerKm: z
+    .number()
+    .min(0)
+    .optional()
+    .default(defaultLifecycleAssumptions.dieselTollCostPerKm),
+  electricTollCostPerKm: z
+    .number()
+    .min(0)
+    .optional()
+    .default(defaultLifecycleAssumptions.electricTollCostPerKm),
+  tollIncreasePercentAnnual: z
+    .number()
+    .min(-100)
+    .max(100)
+    .optional()
+    .default(defaultLifecycleAssumptions.tollIncreasePercentAnnual),
+  publicChargingDiscountPercent: z
+    .number()
+    .min(0)
+    .max(100)
+    .optional()
+    .default(defaultLifecycleAssumptions.publicChargingDiscountPercent),
+});
+
+export type LifecycleAssumptions = z.infer<typeof lifecycleAssumptionsSchema>;
+
 export const comparisonRequestSchema = z.object({
   dieselTruck: truckParametersSchema,
   electricTruck1: truckParametersSchema,
@@ -73,6 +112,7 @@ export const comparisonRequestSchema = z.object({
   timeframeYears: z.number().min(1).max(30),
   taxIncentiveRegion: z.enum(taxIncentiveRegions).optional().default("bundesfoerderung"),
   operationProfile: operationProfileSchema.optional(),
+  lifecycleAssumptions: lifecycleAssumptionsSchema.optional(),
 });
 
 export type ComparisonRequest = z.infer<typeof comparisonRequestSchema>;
@@ -86,6 +126,7 @@ export const yearCostBreakdownSchema = z.object({
   depreciationCost: z.number(),
   infrastructureCost: z.number(),
   downtimeCost: z.number(),
+  tollCost: z.number(),
   totalCost: z.number(),
   cumulativeCost: z.number(),
 });
@@ -103,6 +144,7 @@ export const truckAnalysisSchema = z.object({
   depreciation: z.number(),
   totalInfrastructureCost: z.number(),
   totalDowntimeCost: z.number(),
+  totalTollCost: z.number(),
   environmentalImpact: z.object({
     totalCO2Emissions: z.number(),
     totalFuelConsumed: z.number(),
@@ -698,30 +740,3 @@ export const presetTruckModels: Record<string, TruckParameters> = {
     },
   },
 };
-
-export const scenarios = pgTable("scenarios", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  dieselTruck: jsonb("diesel_truck").notNull().$type<TruckParameters>(),
-  electricTruck1: jsonb("electric_truck_1").notNull().$type<TruckParameters>(),
-  electricTruck2: jsonb("electric_truck_2").notNull().$type<TruckParameters>(),
-  timeframeYears: integer("timeframe_years").notNull(),
-  taxIncentiveRegion: text("tax_incentive_region").notNull().$type<TaxIncentiveRegion>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const insertScenarioSchema = createInsertSchema(scenarios, {
-  dieselTruck: truckParametersSchema,
-  electricTruck1: truckParametersSchema,
-  electricTruck2: truckParametersSchema,
-  taxIncentiveRegion: z.enum(taxIncentiveRegions),
-  timeframeYears: z.number().min(1).max(30),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertScenario = z.infer<typeof insertScenarioSchema>;
-export type Scenario = typeof scenarios.$inferSelect;

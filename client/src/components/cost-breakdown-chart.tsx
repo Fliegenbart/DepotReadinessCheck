@@ -17,8 +17,18 @@ export function CostBreakdownChart({ result }: CostBreakdownChartProps) {
         depreciation: acc.depreciation + year.depreciationCost,
         infrastructure: acc.infrastructure + (year.infrastructureCost ?? 0),
         downtime: acc.downtime + (year.downtimeCost ?? 0),
+        toll: acc.toll + (year.tollCost ?? 0),
       }),
-      { purchase: 0, fuel: 0, maintenance: 0, insurance: 0, depreciation: 0, infrastructure: 0, downtime: 0 }
+      {
+        purchase: 0,
+        fuel: 0,
+        maintenance: 0,
+        insurance: 0,
+        depreciation: 0,
+        infrastructure: 0,
+        downtime: 0,
+        toll: 0,
+      }
     );
     return totals;
   };
@@ -39,6 +49,7 @@ export function CostBreakdownChart({ result }: CostBreakdownChartProps) {
       Abschreibung: Math.round(dieselTotals.depreciation),
       Infrastruktur: Math.round(dieselTotals.infrastructure),
       Ausfallzeit: Math.round(dieselTotals.downtime),
+      "Maut/CO2": Math.round(dieselTotals.toll),
     },
     {
       name: result.electric1Analysis.name.length > 15 
@@ -51,6 +62,7 @@ export function CostBreakdownChart({ result }: CostBreakdownChartProps) {
       Abschreibung: Math.round(electric1Totals.depreciation),
       Infrastruktur: Math.round(electric1Totals.infrastructure),
       Ausfallzeit: Math.round(electric1Totals.downtime),
+      "Maut/CO2": Math.round(electric1Totals.toll),
     },
     {
       name: result.electric2Analysis.name.length > 15 
@@ -63,6 +75,7 @@ export function CostBreakdownChart({ result }: CostBreakdownChartProps) {
       Abschreibung: Math.round(electric2Totals.depreciation),
       Infrastruktur: Math.round(electric2Totals.infrastructure),
       Ausfallzeit: Math.round(electric2Totals.downtime),
+      "Maut/CO2": Math.round(electric2Totals.toll),
     },
   ];
 
@@ -118,6 +131,7 @@ export function CostBreakdownChart({ result }: CostBreakdownChartProps) {
               <Bar dataKey="Abschreibung" stackId="a" fill="hsl(var(--muted))" />
               <Bar dataKey="Infrastruktur" stackId="a" fill="hsl(var(--chart-3))" />
               <Bar dataKey="Ausfallzeit" stackId="a" fill="hsl(var(--chart-4))" />
+              <Bar dataKey="Maut/CO2" stackId="a" fill="hsl(var(--chart-5))" />
             </BarChart>
           </ResponsiveContainer>
         </div>

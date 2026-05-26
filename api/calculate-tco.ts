@@ -1,6 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z, ZodError } from 'zod';
-import type { ComparisonResult, TruckAnalysis, YearCostBreakdown } from '../shared/schema';
+import {
+  lifecycleAssumptionsSchema,
+  type ComparisonResult,
+  type LifecycleAssumptions,
+  type TruckAnalysis,
+  type YearCostBreakdown,
+} from '../shared/schema';
+import { calculateAnnualLifecycleCosts } from '../shared/lifecycle';
 
 const technicalSpecsSchema = z.object({
   zulaessigesGesamtgewicht: z.number().min(0).optional(),
@@ -40,6 +47,7 @@ const comparisonRequestSchema = z.object({
   electricTruck2: truckParametersSchema,
   timeframeYears: z.number().min(1).max(30),
   taxIncentiveRegion: z.enum(taxIncentiveRegions).optional().default("bundesfoerderung"),
+  lifecycleAssumptions: lifecycleAssumptionsSchema.optional(),
   operationProfile: z
     .object({
       dailyKm: z.number().min(0),
@@ -148,14 +156,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const data = comparisonRequestSchema.parse(parsedBody);
 
-    const { dieselTruck, electricTruck1, electricTruck2, timeframeYears, taxIncentiveRegion, operationProfile } = data;
+    const {
+      dieselTruck,
+      electricTruck1,
+      electricTruck2,
+      timeframeYears,
+      taxIncentiveRegion,
+      operationProfile,
+      lifecycleAssumptions,
+    } = data;
 
     const incentiveAmount = regionalIncentives[taxIncentiveRegion || "bundesfoerderung"].totalIncentive;
 
     // Calculate TCO for each truck (apply incentives to electric trucks)
-    const dieselAnalysis = calculateTruckAnalysis(dieselTruck, timeframeYears, 0, operationProfile);
-    const electric1Analysis = calculateTruckAnalysis(electricTruck1, timeframeYears, incentiveAmount, operationProfile);
-    const electric2Analysis = calculateTruckAnalysis(electricTruck2, timeframeYears, incentiveAmount, operationProfile);
+    const dieselAnalysis = calculateTruckAnalysis(
+      dieselTruck,
+      timeframeYears,
+      0,
+      operationProfile,
+      lifecycleAssumptions,
+    );
+    const electric1Analysis = calculateTruckAnalysis(
+      electricTruck1,
+      timeframeYears,
+      incentiveAmount,
+      operationProfile,
+      lifecycleAssumptions,
+    );
+    const electric2Analysis = calculateTruckAnalysis(
+      electricTruck2,
+      timeframeYears,
+      incentiveAmount,
+      operationProfile,
+      lifecycleAssumptions,
+    );
 
     // Calculate break-even points
     const dieselVsElectric1 = calculateBreakEven(
@@ -236,7 +270,8 @@ function calculateTruckAnalysis(
     infrastructureCapex: number;
     infrastructureOpexAnnual: number;
     infrastructureLifetimeYears: number;
-  }
+  },
+  lifecycleAssumptions?: LifecycleAssumptions,
 ): TruckAnalysis {
   const profile = {
     dailyKm: 0,
@@ -307,14 +342,16 @@ function calculateTruckAnalysis(
   for (let year = 1; year <= timeframeYears; year++) {
     const purchaseCost = year === 1 ? effectivePurchasePrice : 0;
 
-    let fuelCost: number;
-    if (truck.type === "diesel") {
-      const litersPerYear = (truck.annualMileage / 100) * truck.fuelEfficiency;
-      fuelCost = litersPerYear * effectiveFuelCostPerUnit;
-    } else {
-      const kWhPerYear = (truck.annualMileage / 100) * truck.fuelEfficiency;
-      fuelCost = kWhPerYear * effectiveFuelCostPerUnit;
-    }
+    const fuelUnitsPerYear = (truck.annualMileage / 100) * truck.fuelEfficiency;
+    const lifecycleCosts = calculateAnnualLifecycleCosts({
+      year,
+      annualMileage: truck.annualMileage,
+      fuelUnitsPerYear,
+      baseFuelCostPerUnit: effectiveFuelCostPerUnit,
+      isElectric,
+      lifecycleAssumptions,
+    });
+    const fuelCost = lifecycleCosts.fuelCost;
 
     const maintenanceCost = truck.maintenanceCostAnnual;
     const insuranceCost = truck.insuranceCostAnnual;
@@ -327,6 +364,7 @@ function calculateTruckAnalysis(
         : 0
       : 0;
     const downtimeCost = isElectric ? downtimeAnnualCost : 0;
+    const tollCost = lifecycleCosts.tollCost;
 
     const totalCost =
       purchaseCost +
@@ -335,7 +373,8 @@ function calculateTruckAnalysis(
       insuranceCost +
       depreciationCost +
       infrastructureCost +
-      downtimeCost;
+      downtimeCost +
+      tollCost;
     cumulativeCost += totalCost;
 
     yearlyBreakdown.push({
@@ -347,6 +386,7 @@ function calculateTruckAnalysis(
       depreciationCost,
       infrastructureCost,
       downtimeCost,
+      tollCost,
       totalCost,
       cumulativeCost,
     });
@@ -358,6 +398,7 @@ function calculateTruckAnalysis(
   const depreciation = yearlyBreakdown.reduce((sum, year) => sum + year.depreciationCost, 0);
   const totalInfrastructureCost = yearlyBreakdown.reduce((sum, year) => sum + year.infrastructureCost, 0);
   const totalDowntimeCost = yearlyBreakdown.reduce((sum, year) => sum + year.downtimeCost, 0);
+  const totalTollCost = yearlyBreakdown.reduce((sum, year) => sum + year.tollCost, 0);
   const totalCostOfOwnership = cumulativeCost;
 
   let totalFuelConsumed: number;
@@ -385,6 +426,7 @@ function calculateTruckAnalysis(
     depreciation,
     totalInfrastructureCost,
     totalDowntimeCost,
+    totalTollCost,
     environmentalImpact: {
       totalCO2Emissions,
       totalFuelConsumed,
